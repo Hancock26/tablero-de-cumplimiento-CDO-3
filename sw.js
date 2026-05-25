@@ -1,4 +1,4 @@
-const CACHE = 'cdo-v3';
+const CACHE = 'cdo-v4';
 const ASSETS = ['/', '/index.html', '/datos.csv', '/audios.csv', '/manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js',
   'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js'];
