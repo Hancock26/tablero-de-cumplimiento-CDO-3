@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#378ADD">
+<meta name="description" content="Tablero de Indicadores CDO - Centro de Datos">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CDO Dashboard">
+<link rel="manifest" href="manifest.json">
+<title>Tablero de Indicadores CDO</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --surface2: #f5f6f8;
+  --surface3: #eceef2;
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.14);
+  --text: #111318;
+  --text2: #4a4d57;
+  --text3: #8a8d9a;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --blue: #2563EB;
+  --blue-light: #EFF6FF;
+  --green: #059669;
+  --green-light: #ECFDF5;
+  --orange: #DC6803;
+  --orange-light: #FFF7ED;
+  --red: #DC2626;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #222535; --surface3: #2a2d3e;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+    --text: #e8eaf0; --text2: #9095a8; --text3: #60637a;
+    --blue-light: #1e2a4a; --green-light: #0a2a1e; --orange-light: #2a1a0a;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3); --shadow-md: 0 4px 6px rgba(0,0,0,0.25);
+  }
+}
+html { scroll-behavior: smooth; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+/* ─── DESKTOP LAYOUT ─── */
+.desktop-wrap { max-width: 1200px; margin: 0 auto; padding: 24px 24px 40px; }
+.mobile-wrap { display: none; }
+
+/* Header */
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-icon { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #2563EB, #059669); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
+.logo-icon svg { width: 20px; height: 20px; fill: none; stroke: white; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.logo-text h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+.logo-text p { font-size: 12px; color: var(--text3); margin-top: 1px; }
+.header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.last-update { font-size: 11px; color: var(--text3); }
+
+/* Tabs */
+.tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: var(--radius-sm); padding: 3px; border: 0.5px solid var(--border); }
+.tab { padding: 7px 18px; font-size: 13px; border-radius: 6px; cursor: pointer; border: none; background: transparent; color: var(--text2); font-family: inherit; transition: all 0.18s; font-weight: 500; white-space: nowrap; }
+.tab.active { background: var(--surface); color: var(--text); border: 0.5px solid var(--border2); box-shadow: var(--shadow); font-weight: 600; }
+
+/* Filters */
+.filters { display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-start; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); flex-wrap: wrap; }
+.fg { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 130px; }
+.fg label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+.fg select { font-size: 13px; padding: 5px 9px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--surface2); color: var(--text); font-family: inherit; cursor: pointer; }
+.fg select[multiple] { min-height: 90px; }
+.fg select option { padding: 3px 6px; }
+.filter-actions { display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; padding-top: 18px; }
+.btn-reset { font-size: 12px; color: var(--text3); background: var(--surface2); border: 0.5px solid var(--border2); cursor: pointer; font-family: inherit; padding: 6px 12px; border-radius: var(--radius-sm); transition: all 0.15s; white-space: nowrap; font-weight: 500; }
+.btn-reset:hover { background: var(--surface3); color: var(--text); }
+
+/* KPI row */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.kpi { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
+.kpi-icon { font-size: 18px; margin-bottom: 8px; }
+.kpi-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; font-weight: 600; }
+.kpi-value { font-size: 26px; font-weight: 700; line-height: 1; letter-spacing: -0.5px; }
+.kpi-sub { font-size: 12px; margin-top: 6px; font-weight: 500; }
+.up { color: var(--green); } .down { color: var(--red); } .neutral { color: var(--text3); }
+
+/* Charts grid */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
+.card-title { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 14px; }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 12px; border-bottom: 1px solid var(--border2); white-space: nowrap; background: var(--surface2); }
+th:first-child { border-radius: 6px 0 0 0; }
+th:last-child { border-radius: 0 6px 0 0; }
+td { padding: 10px 12px; border-bottom: 0.5px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surface2); }
+.rank { font-size: 12px; color: var(--text3); font-weight: 700; text-align: center; }
+.op-name { font-weight: 600; font-size: 13px; }
+.val { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14px; }
+.bar-wrap { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.bar-bg { flex: 1; height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+.pct-label { font-size: 11px; color: var(--text3); min-width: 34px; text-align: right; font-weight: 600; }
+
+/* Month stack in table */
+.month-stack { display: flex; flex-direction: column; gap: 5px; min-width: 180px; }
+.month-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 6px; background: var(--surface2); border: 0.5px solid var(--border); }
+.month-name { font-size: 11px; font-weight: 600; color: var(--text2); min-width: 70px; }
+.month-bar-wrap { flex: 1; display: flex; align-items: center; gap: 6px; }
+.month-bar-bg { flex: 1; height: 5px; background: var(--surface3); border-radius: 3px; overflow: hidden; min-width: 40px; }
+.month-bar-fill { height: 100%; border-radius: 3px; }
+.month-pct { font-size: 11px; font-weight: 700; min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Badge */
+.badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.03em; }
+
+/* Footer */
+.footer { margin-top: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 0 2px; }
+.footer-left { font-size: 11px; color: var(--text3); }
+
+/* State */
+.state { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 14px; }
+.state .icon { font-size: 36px; margin-bottom: 12px; }
+
+/* Install banner */
+.install-banner { display: none; background: var(--blue); color: white; padding: 12px 15px; border-radius: var(--radius-sm); margin-bottom: 12px; align-items: center; justify-content: space-between; gap: 12px; }
+.install-banner.show { display: flex; }
+.install-banner button { padding: 6px 12px; background: white; color: var(--blue); border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 12px; }
+.install-banner .close-btn { background: none; color: white; padding: 4px; }
+
+/* ─── MOBILE LAYOUT ─── */
+@media (max-width: 768px) {
+  .desktop-wrap { display: none; }
+  .mobile-wrap { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); }
+
+  /* Mobile header */
+  .m-header { background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+  .m-logo { display: flex; align-items: center; gap: 9px; }
+  .m-logo-icon { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #2563EB, #059669); display: flex; align-items: center; justify-content: center; }
+  .m-logo-icon svg { width: 16px; height: 16px; fill: none; stroke: white; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .m-logo-text { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
+  .m-logo-sub { font-size: 10px; color: var(--text3); margin-top: 1px; }
+  .m-last-update { font-size: 10px; color: var(--text3); text-align: right; }
+
+  /* Mobile metric tabs */
+  .m-metric-tabs { display: flex; background: var(--surface); border-bottom: 0.5px solid var(--border); }
+  .m-tab { flex: 1; padding: 11px 4px; font-size: 12px; font-weight: 600; text-align: center; cursor: pointer; border: none; background: transparent; color: var(--text3); font-family: inherit; transition: all 0.15s; border-bottom: 2px solid transparent; }
+  .m-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .m-tab-icon { font-size: 16px; display: block; margin-bottom: 2px; }
+
+  /* Mobile content */
+  .m-content { flex: 1; padding: 12px 14px 80px; overflow-y: auto; }
+
+  /* Mobile KPIs - 2x2 grid */
+  .m-kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .m-kpi { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); }
+  .m-kpi-label { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .m-kpi-value { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .m-kpi-sub { font-size: 11px; margin-top: 3px; font-weight: 500; }
+
+  /* Mobile cards */
+  .m-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 14px 14px; box-shadow: var(--shadow); margin-bottom: 10px; }
+  .m-card-title { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 12px; }
+
+  /* Mobile table */
+  .m-table-list { display: flex; flex-direction: column; gap: 8px; }
+  .m-op-card { background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .m-op-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .m-op-rank { font-size: 10px; font-weight: 700; color: var(--text3); background: var(--surface3); border-radius: 4px; padding: 2px 6px; }
+  .m-op-name { font-size: 13px; font-weight: 600; flex: 1; margin: 0 8px; }
+  .m-op-val { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .m-op-bar-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .m-op-bar-bg { flex: 1; height: 5px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
+  .m-op-bar-fill { height: 100%; border-radius: 3px; }
+  .m-op-plat { font-size: 10px; color: var(--text3); margin-bottom: 6px; }
+  .m-month-stack { display: flex; flex-direction: column; gap: 4px; }
+  .m-month-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; background: var(--surface); border-radius: 5px; border: 0.5px solid var(--border); }
+  .m-month-name { font-size: 10px; font-weight: 600; color: var(--text2); min-width: 65px; }
+  .m-month-bar-wrap { flex: 1; height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
+  .m-month-bar-fill { height: 100%; border-radius: 2px; }
+  .m-month-pct { font-size: 10px; font-weight: 700; min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Mobile bottom nav */
+  .m-bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-around; padding: 8px 0; padding-bottom: max(8px, env(safe-area-inset-bottom)); z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.06); }
+  .m-nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; cursor: pointer; border: none; background: transparent; color: var(--text3); font-family: inherit; transition: color 0.15s; }
+  .m-nav-btn.active { color: var(--blue); }
+  .m-nav-icon { font-size: 20px; }
+  .m-nav-label { font-size: 10px; font-weight: 600; }
+
+  /* Mobile filter panel */
+  .m-filter-toggle { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; cursor: pointer; box-shadow: var(--shadow); }
+  .m-filter-toggle-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+  .m-filter-toggle-count { font-size: 11px; font-weight: 700; background: var(--blue); color: white; border-radius: 10px; padding: 1px 7px; display: none; }
+  .m-filter-toggle-count.show { display: inline-block; }
+  .m-filter-panel { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; display: none; box-shadow: var(--shadow); }
+  .m-filter-panel.open { display: block; }
+  .m-filter-panel .fg { margin-bottom: 10px; }
+  .m-filter-panel .fg:last-child { margin-bottom: 0; }
+  .m-filter-panel .fg select { width: 100%; min-height: 80px; }
+
+  /* Active filter tags */
+  .m-active-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .m-filter-tag { display: flex; align-items: center; gap: 4px; background: var(--blue-light); color: var(--blue); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
+  .m-filter-tag-remove { cursor: pointer; font-size: 13px; line-height: 1; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     DESKTOP LAYOUT
+═══════════════════════════════════════════════ -->
+<div class="desktop-wrap">
+  <div class="install-banner" id="install-banner">
+    <div>📱 Instalar como app en tu dispositivo</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="installApp()">Instalar</button>
+      <button class="close-btn" onclick="closeInstallBanner()">✕</button>
+    </div>
+  </div>
+
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div class="logo-text">
+        <h1>CDO Dashboard</h1>
+        <p>Centro de Datos · Seguimiento de Operadores</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="last-update" id="last-update">Cargando…</div>
+      <div class="tabs">
+        <button class="tab active" onclick="setMetric('LLAMADAS',this)">📞 Llamadas</button>
+        <button class="tab" onclick="setMetric('CORREOS',this)">✉️ Correos</button>
+        <button class="tab" onclick="setMetric('ALERTAS',this)">🔔 Alertas</button>
+        <button class="tab" onclick="setMetric('AUDIOS',this)">🔊 Audios</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="filters" id="d-filters" style="display:none">
+    <div class="fg">
+      <label>Operador</label>
+      <select multiple id="d-sel-op" onchange="render()"></select>
+    </div>
+    <div class="fg">
+      <label>Plataforma</label>
+      <select multiple id="d-sel-plat" onchange="render()"></select>
+    </div>
+    <div class="fg">
+      <label>Mes</label>
+      <select multiple id="d-sel-mes" onchange="render()"></select>
+    </div>
+    <div class="fg">
+      <label>Año</label>
+      <select multiple id="d-sel-year" onchange="render()"></select>
+    </div>
+    <div class="fg" id="d-fg-tipo" style="display:none">
+      <label>Tipo Audio</label>
+      <select multiple id="d-sel-tipo" onchange="render()">
+        <option value="MASIVO">📣 Masivo</option>
+        <option value="DIRIGIDO">🎯 Dirigido</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-reset" onclick="resetFilters()">✕ Limpiar filtros</button>
+    </div>
+  </div>
+
+  <div id="d-main">
+    <div class="state">
+      <div class="icon">⏳</div>
+      <div>Cargando datos…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MOBILE LAYOUT
+═══════════════════════════════════════════════ -->
+<div class="mobile-wrap">
+  <div class="m-header">
+    <div class="m-logo">
+      <div class="m-logo-icon">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div>
+        <div class="m-logo-text">CDO Dashboard</div>
+        <div class="m-logo-sub">Centro de Datos</div>
+      </div>
+    </div>
+    <div class="m-last-update" id="m-last-update">Cargando…</div>
+  </div>
+
+  <div class="m-metric-tabs">
+    <button class="m-tab active" onclick="mSetMetric('LLAMADAS',this)">
+      <span class="m-tab-icon">📞</span>Llamadas
+    </button>
+    <button class="m-tab" onclick="mSetMetric('CORREOS',this)">
+      <span class="m-tab-icon">✉️</span>Correos
+    </button>
+    <button class="m-tab" onclick="mSetMetric('ALERTAS',this)">
+      <span class="m-tab-icon">🔔</span>Alertas
+    </button>
+    <button class="m-tab" onclick="mSetMetric('AUDIOS',this)">
+      <span class="m-tab-icon">🔊</span>Audios
+    </button>
+  </div>
+
+  <div class="m-content" id="m-content">
+    <div class="state"><div class="icon">⏳</div><div>Cargando datos…</div></div>
+  </div>
+
+  <div class="m-bottom-nav" id="m-bottom-nav" style="display:none">
+    <button class="m-nav-btn active" id="m-nav-dashboard" onclick="mShowView('dashboard',this)">
+      <span class="m-nav-icon">📊</span>
+      <span class="m-nav-label">Resumen</span>
+    </button>
+    <button class="m-nav-btn" id="m-nav-chart" onclick="mShowView('chart',this)">
+      <span class="m-nav-icon">📈</span>
+      <span class="m-nav-label">Gráficos</span>
+    </button>
+    <button class="m-nav-btn" id="m-nav-table" onclick="mShowView('table',this)">
+      <span class="m-nav-icon">📋</span>
+      <span class="m-nav-label">Detalle</span>
+    </button>
+    <button class="m-nav-btn" id="m-nav-filter" onclick="mToggleFilter()">
+      <span class="m-nav-icon">🔽</span>
+      <span class="m-nav-label">Filtros</span>
+    </button>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────
+   CONSTANTS & STATE
+───────────────────────────────────────── */
+const COLORS = {
+  LLAMADAS: { line:'#2563EB', fill:'rgba(37,99,235,0.10)', bar:'#2563EB', light:'#EFF6FF' },
+  CORREOS:  { line:'#059669', fill:'rgba(5,150,105,0.10)', bar:'#059669', light:'#ECFDF5' },
+  ALERTAS:  { line:'#DC6803', fill:'rgba(220,104,3,0.10)', bar:'#DC6803', light:'#FFF7ED' },
+  AUDIOS:   { line:'#7C3AED', fill:'rgba(124,58,237,0.10)', bar:'#7C3AED', light:'#F5F3FF' },
+};
+const ICONS = { LLAMADAS:'📞', CORREOS:'✉️', ALERTAS:'🔔', AUDIOS:'🔊' };
+const MONTH_ORDER = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+const BADGE_COLORS = [
+  ['#EFF6FF','#1D4ED8'],['#ECFDF5','#065F46'],['#FFF7ED','#9A3412'],
+  ['#FDF4FF','#7E22CE'],['#F0FDF4','#14532D'],['#FEF2F2','#991B1B'],
+];
+
+let RAW = [];
+let metric = 'LLAMADAS';
+let mView = 'dashboard';
+let mFilterOpen = false;
+let dC1, dC2, mC1, mC2;
+let mesColors = {};
+let deferredPrompt;
+
+/* ─────────────────────────────────────────
+   PWA
+───────────────────────────────────────── */
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  document.getElementById('install-banner').classList.add('show');
+});
+function installApp() {
+  if(deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt=null; closeInstallBanner(); }); }
+}
+function closeInstallBanner() { document.getElementById('install-banner').classList.remove('show'); }
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+/* ─────────────────────────────────────────
+   DATA LOADING
+───────────────────────────────────────── */
+fetch('datos.csv?t=' + Date.now())
+  .then(r => { if(!r.ok) throw new Error('No se pudo cargar datos.csv'); return r.text(); })
+  .then(text => {
+    const result = Papa.parse(text, { header:true, skipEmptyLines:true, dynamicTyping:true });
+    RAW = result.data.filter(d => d.OPERADOR && d.MES);
+    if(!RAW.length) throw new Error('El CSV está vacío o mal formateado.');
+    const dateStr = new Date().toLocaleDateString('es-CO', {day:'2-digit',month:'short',year:'numeric'});
+    document.getElementById('last-update').textContent = 'Actualizado: ' + dateStr;
+    document.getElementById('m-last-update').textContent = dateStr;
+    initFilters();
+    document.getElementById('d-filters').style.display = 'flex';
+    document.getElementById('m-bottom-nav').style.display = 'flex';
+    buildDesktop();
+    buildMobile();
+    render();
+  })
+  .catch(err => {
+    const html = `<div class="state"><div class="icon">⚠️</div><div style="color:#DC2626;margin-bottom:8px">No se pudo cargar los datos</div><div style="font-size:12px">${err.message}</div></div>`;
+    document.getElementById('d-main').innerHTML = html;
+    document.getElementById('m-content').innerHTML = html;
+  });
+
+/* ─────────────────────────────────────────
+   FILTERS INIT
+───────────────────────────────────────── */
+function initFilters() {
+  const ops   = [...new Set(RAW.map(d=>d.OPERADOR))].sort();
+  const plats = [...new Set(RAW.map(d=>d.PLATAFORMA))].sort();
+  const meses = [...new Set(RAW.map(d=>d.MES))].sort((a,b)=>MONTH_ORDER.indexOf(a)-MONTH_ORDER.indexOf(b));
+  const years = [...new Set(RAW.map(d=>d.AÑO).filter(Boolean))].sort();
+
+  meses.forEach((m,i) => { mesColors[m] = BADGE_COLORS[i % BADGE_COLORS.length]; });
+
+  function populate(selId, items, labelFn) {
+    const el = document.getElementById(selId);
+    if(!el) return;
+    el.innerHTML = '';
+    items.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=labelFn?labelFn(v):v; el.appendChild(o); });
+  }
+  const mesLabel = m => m.charAt(0)+m.slice(1).toLowerCase();
+
+  populate('d-sel-op',   ops);
+  populate('d-sel-plat', plats);
+  populate('d-sel-mes',  meses, mesLabel);
+  populate('d-sel-year', years);
+  populate('m-sel-op',   ops);
+  populate('m-sel-plat', plats);
+  populate('m-sel-mes',  meses, mesLabel);
+  populate('m-sel-year', years);
+
+  // Badge styles
+  const style = document.createElement('style');
+  meses.forEach((m,i) => {
+    const [bg,fg] = BADGE_COLORS[i % BADGE_COLORS.length];
+    style.textContent += `.badge-${CSS.escape(m)}{background:${bg};color:${fg};}`;
+  });
+  document.head.appendChild(style);
+}
+
+/* ─────────────────────────────────────────
+   FILTER HELPERS
+───────────────────────────────────────── */
+function getVals(id) {
+  const el = document.getElementById(id);
+  return el ? [...el.selectedOptions].map(o=>o.value) : [];
+}
+
+function getData() {
+  const isMobile = window.innerWidth <= 768;
+  const prefix = isMobile ? 'm-' : 'd-';
+  const op = getVals(prefix+'sel-op');
+  const pl = getVals(prefix+'sel-plat');
+  const me = getVals(prefix+'sel-mes');
+  const yr = getVals(prefix+'sel-year');
+  const ti = metric === 'AUDIOS' ? getVals(prefix+'sel-tipo') : [];
+  return RAW.filter(d =>
+    (!op.length || op.includes(d.OPERADOR)) &&
+    (!pl.length || pl.includes(d.PLATAFORMA)) &&
+    (!me.length || me.includes(d.MES)) &&
+    (!yr.length || yr.includes(String(d.AÑO))) &&
+    (!ti.length || ti.includes(d.TIPO_AUDIO)) &&
+    d[metric] !== null && d[metric] !== '' && !isNaN(+d[metric]) && +d[metric] > 0
+  );
+}
+
+function avg(arr) { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+function agg(arr) {
+  // For AUDIOS use SUM (total count), for others use average
+  if(metric === 'AUDIOS') return arr.reduce((a,b)=>a+b,0);
+  return avg(arr);
+}
+function fmt(v) {
+  if(metric === 'AUDIOS') return Math.round(+v).toLocaleString('es-CO');
+  return (+v).toFixed(1)+'%';
+}
+function fmtRaw(v) {
+  if(metric === 'AUDIOS') return Math.round(+v).toLocaleString('es-CO');
+  return (+v).toFixed(3)+'%';
+}
+
+function resetFilters() {
+  ['d-sel-op','d-sel-plat','d-sel-mes','d-sel-year','d-sel-tipo',
+   'm-sel-op','m-sel-plat','m-sel-mes','m-sel-year','m-sel-tipo'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) [...el.options].forEach(o=>o.selected=false);
+  });
+  updateFilterCount();
+  render();
+}
+
+function updateFilterCount() {
+  const total = ['m-sel-op','m-sel-plat','m-sel-mes','m-sel-year']
+    .reduce((acc,id) => acc + getVals(id).length, 0);
+  const badge = document.getElementById('m-filter-count');
+  if(badge) { badge.textContent = total; badge.classList.toggle('show', total > 0); }
+  const navBtn = document.getElementById('m-nav-filter');
+  if(navBtn) navBtn.querySelector('.m-nav-icon').textContent = total > 0 ? '🔽' : '🔽';
+}
+
+/* ─────────────────────────────────────────
+   METRIC SWITCHING
+───────────────────────────────────────── */
+function setMetric(m, btn) {
+  metric = m;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  const fg = document.getElementById('d-fg-tipo');
+  if(fg) fg.style.display = m === 'AUDIOS' ? 'flex' : 'none';
+  if(RAW.length) render();
+}
+function mSetMetric(m, btn) {
+  metric = m;
+  document.querySelectorAll('.m-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  const fg = document.getElementById('m-fg-tipo');
+  if(fg) fg.style.display = m === 'AUDIOS' ? 'flex' : 'none';
+  if(RAW.length) render();
+}
+
+/* ─────────────────────────────────────────
+   MOBILE VIEW SWITCHING
+───────────────────────────────────────── */
+function mShowView(view, btn) {
+  mView = view;
+  document.querySelectorAll('.m-nav-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(mFilterOpen) { mFilterOpen=false; document.getElementById('m-filter-panel').classList.remove('open'); }
+  if(RAW.length) renderMobile(getData());
+}
+function mToggleFilter() {
+  mFilterOpen = !mFilterOpen;
+  const panel = document.getElementById('m-filter-panel');
+  if(panel) panel.classList.toggle('open', mFilterOpen);
+  const navBtn = document.getElementById('m-nav-filter');
+  document.querySelectorAll('.m-nav-btn').forEach(b=>b.classList.remove('active'));
+  navBtn.classList.add('active');
+}
+
+/* ─────────────────────────────────────────
+   BUILD DESKTOP SKELETON
+───────────────────────────────────────── */
+function buildDesktop() {
+  document.getElementById('d-main').innerHTML = `
+    <div class="kpi-row" id="d-kpi-row"></div>
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-title" id="d-c1-title"></div>
+        <div style="position:relative;height:210px"><canvas id="d-chart1"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title" id="d-c2-title"></div>
+        <div style="position:relative;height:210px"><canvas id="d-chart2"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" id="d-t-title"></div>
+      <div class="table-wrap" id="d-t-wrap"></div>
+    </div>
+    <div class="footer">
+      <div class="footer-left" id="d-footer"></div>
+    </div>
+  `;
+}
+
+/* ─────────────────────────────────────────
+   BUILD MOBILE SKELETON
+───────────────────────────────────────── */
+function buildMobile() {
+  document.getElementById('m-content').innerHTML = `
+    <div class="m-filter-toggle" onclick="mToggleFilter()">
+      <div class="m-filter-toggle-left">
+        <span>🔍</span> Filtros
+        <span class="m-filter-toggle-count" id="m-filter-count">0</span>
+      </div>
+      <span style="color:var(--text3);font-size:12px">▼</span>
+    </div>
+    <div class="m-filter-panel" id="m-filter-panel">
+      <div class="fg"><label>Operador</label><select multiple id="m-sel-op" onchange="updateFilterCount();render()"></select></div>
+      <div class="fg"><label>Plataforma</label><select multiple id="m-sel-plat" onchange="updateFilterCount();render()"></select></div>
+      <div class="fg"><label>Mes</label><select multiple id="m-sel-mes" onchange="updateFilterCount();render()"></select></div>
+      <div class="fg"><label>Año</label><select multiple id="m-sel-year" onchange="updateFilterCount();render()"></select></div>
+      <div class="fg m-fg-tipo" id="m-fg-tipo" style="display:none"><label>Tipo Audio</label><select multiple id="m-sel-tipo" onchange="updateFilterCount();render()"><option value="MASIVO">📣 Masivo</option><option value="DIRIGIDO">🎯 Dirigido</option></select></div>
+      <button class="btn-reset" style="margin-top:8px;width:100%" onclick="resetFilters()">✕ Limpiar filtros</button>
+    </div>
+    <div id="m-view-content"></div>
+  `;
+  // Re-populate mobile selects after DOM ready
+  const ops   = [...new Set(RAW.map(d=>d.OPERADOR))].sort();
+  const plats = [...new Set(RAW.map(d=>d.PLATAFORMA))].sort();
+  const meses = [...new Set(RAW.map(d=>d.MES))].sort((a,b)=>MONTH_ORDER.indexOf(a)-MONTH_ORDER.indexOf(b));
+  const years = [...new Set(RAW.map(d=>d.AÑO).filter(Boolean))].sort();
+  const mesLabel = m => m.charAt(0)+m.slice(1).toLowerCase();
+  function fill(id, items, lFn) {
+    const el=document.getElementById(id); if(!el) return;
+    items.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=lFn?lFn(v):v;el.appendChild(o);});
+  }
+  fill('m-sel-op', ops); fill('m-sel-plat', plats);
+  fill('m-sel-mes', meses, mesLabel); fill('m-sel-year', years);
+}
+
+/* ─────────────────────────────────────────
+   MAIN RENDER
+───────────────────────────────────────── */
+function render() {
+  const data = getData();
+  renderDesktop(data);
+  renderMobile(data);
+}
+
+/* ─────────────────────────────────────────
+   SHARED DATA HELPERS
+───────────────────────────────────────── */
+function getKpiData(data) {
+  const vals = data.map(d=>+d[metric]);
+  const avgAll = agg(vals);
+  const maxVal = vals.length ? Math.max(...vals) : 0;
+  const minVal = vals.length ? Math.min(...vals) : 0;
+  const maxOp  = data.find(d=>+d[metric]===maxVal);
+  const minOp  = data.find(d=>+d[metric]===minVal);
+  const mesesAll = [...new Set(RAW.map(d=>d.MES))].sort((a,b)=>MONTH_ORDER.indexOf(a)-MONTH_ORDER.indexOf(b));
+  const first=mesesAll[0], last=mesesAll[mesesAll.length-1];
+  const diff = avg(RAW.filter(d=>d.MES===last&&+d[metric]>0).map(d=>+d[metric])) -
+               avg(RAW.filter(d=>d.MES===first&&+d[metric]>0).map(d=>+d[metric]));
+  return { avgAll, maxVal, minVal, maxOp, minOp, diff };
+}
+
+function getMesesData(data) {
+  return [...new Set(RAW.map(d=>d.MES))].sort((a,b)=>MONTH_ORDER.indexOf(a)-MONTH_ORDER.indexOf(b));
+}
+
+function getTableRows(data) {
+  const maxM = Math.max(...data.map(d=>+d[metric]));
+  const opList = [...new Set(data.map(d=>d.OPERADOR))].sort();
+  return opList.map(op => {
+    const opData = data.filter(d=>d.OPERADOR===op);
+    const val  = agg(opData.map(d=>+d[metric]));
+    // Per-month values for this operator
+    const mss  = [...new Set(opData.map(d=>d.MES))].sort((a,b)=>MONTH_ORDER.indexOf(a)-MONTH_ORDER.indexOf(b));
+    const mssData = mss.map(m => ({
+      mes: m,
+      val: agg(opData.filter(d=>d.MES===m).map(d=>+d[metric]))
+    }));
+    const plts = [...new Set(opData.map(d=>d.PLATAFORMA))];
+    return { op, val, mssData, plts, pct: maxM>0 ? val/maxM : 0 };
+  }).sort((a,b)=>b.val-a.val);
+}
+
+/* ─────────────────────────────────────────
+   DESKTOP RENDER
+───────────────────────────────────────── */
+function renderDesktop(data) {
+  const col = COLORS[metric];
+  const ml = metric.charAt(0)+metric.slice(1).toLowerCase();
+  const kpi = getKpiData(data);
+  const diffClass = kpi.diff>=0?'up':'down';
+  const diffSign  = kpi.diff>=0?'▲':'▼';
+
+  document.getElementById('d-kpi-row').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-icon">${ICONS[metric]}</div>
+      <div class="kpi-label">${metric==='AUDIOS'?'Total audios':'Promedio general'}</div>
+      <div class="kpi-value" style="color:${col.line}">${fmt(kpi.avgAll)}</div>
+      <div class="kpi-sub ${diffClass}">${diffSign} ${fmt(Math.abs(kpi.diff))} tendencia</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">⬆️</div>
+      <div class="kpi-label">Máximo</div>
+      <div class="kpi-value">${fmt(kpi.maxVal)}</div>
+      <div class="kpi-sub neutral" style="font-size:10px;white-space:normal;line-height:1.3">${kpi.maxOp?kpi.maxOp.OPERADOR:'—'}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">⬇️</div>
+      <div class="kpi-label">Mínimo</div>
+      <div class="kpi-value">${fmt(kpi.minVal)}</div>
+      <div class="kpi-sub neutral" style="font-size:10px;white-space:normal;line-height:1.3">${kpi.minOp?kpi.minOp.OPERADOR:'—'}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">👥</div>
+      <div class="kpi-label">Registros</div>
+      <div class="kpi-value">${data.length}</div>
+      <div class="kpi-sub neutral">${[...new Set(data.map(d=>d.OPERADOR))].length} operadores</div>
+    </div>
+  `;
+
+  // Chart 1 – by mes
+  const meses = getMesesData(data);
+  const avgByMes = meses.map(m=>agg(data.filter(d=>d.MES===m).map(d=>+d[metric])));
+  document.getElementById('d-c1-title').textContent = ml.toLowerCase()+' — por mes';
+  if(dC1) dC1.destroy();
+  dC1 = new Chart(document.getElementById('d-chart1'),{
+    type:'line',
+    data:{ labels:meses.map(m=>m.slice(0,3)), datasets:[{ label:ml, data:avgByMes.map(v=>+v.toFixed(2)), borderColor:col.line, backgroundColor:col.fill, fill:true, tension:0.4, pointRadius:5, pointBackgroundColor:col.line, borderWidth:2.5 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ ticks:{font:{size:11}}, grid:{display:false} }, y:{ ticks:{font:{size:10}, callback:v=>metric==='AUDIOS'?v.toLocaleString('es-CO'):v.toFixed(0)+'%'}, grid:{color:'rgba(128,128,128,0.07)'}, beginAtZero:true } } }
+  });
+
+  // Chart 2 – by operador
+  const opList = [...new Set(data.map(d=>d.OPERADOR))].sort();
+  const avgByOp = opList.map(o=>agg(data.filter(d=>d.OPERADOR===o).map(d=>+d[metric])));
+  document.getElementById('d-c2-title').textContent = ml.toLowerCase()+' — por operador';
+  if(dC2) dC2.destroy();
+  dC2 = new Chart(document.getElementById('d-chart2'),{
+    type:'bar',
+    data:{ labels:opList.map(o=>o.split(' ')[0].slice(0,7)), datasets:[{ label:ml, data:avgByOp.map(v=>+v.toFixed(2)), backgroundColor:col.bar+'bb', borderColor:col.bar, borderWidth:1, borderRadius:4 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ ticks:{font:{size:9}, maxRotation:45, autoSkip:false}, grid:{display:false} }, y:{ ticks:{font:{size:10}, callback:v=>metric==='AUDIOS'?v.toLocaleString('es-CO'):v.toFixed(0)+'%'}, grid:{color:'rgba(128,128,128,0.07)'}, beginAtZero:true } } }
+  });
+
+  // Table
+  const rows = getTableRows(data);
+  const maxM = Math.max(...rows.map(r=>r.val));
+  document.getElementById('d-t-title').textContent = metric==='AUDIOS' ? `Audios enviados por operador` : `Detalle por operador — ${ml.toLowerCase()}`;
+  document.getElementById('d-t-wrap').innerHTML = `
+    <table>
+      <thead><tr>
+        <th style="width:36px">#</th>
+        <th>Operador</th>
+        <th>Plataforma</th>
+        <th>Meses</th>
+        <th>Promedio</th>
+        <th>Índice</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((r,i)=>`
+          <tr>
+            <td class="rank">${i+1}</td>
+            <td class="op-name">${r.op}</td>
+            <td style="font-size:11px;color:var(--text2)">${r.plts.join(', ')}</td>
+            <td>
+              <div class="month-stack">
+                ${r.mssData.map(md=>`
+                  <div class="month-row">
+                    <span class="month-name">${md.mes.charAt(0)+md.mes.slice(1).toLowerCase()}</span>
+                    <div class="month-bar-wrap">
+                      <div class="month-bar-bg"><div class="month-bar-fill" style="width:${md.val.toFixed(1)}%;background:${col.bar};min-width:${md.val>0?'4px':'0'}"></div></div>
+                    </div>
+                    <span class="month-pct" style="color:${col.line}">${fmt(md.val)}</span>
+                  </div>`).join('')}
+              </div>
+            </td>
+            <td class="val" style="color:${col.line}">${fmt(r.val)}</td>
+            <td>
+              <div class="bar-wrap">
+                <div class="bar-bg"><div class="bar-fill" style="width:${(r.pct*100).toFixed(0)}%;background:${col.bar}"></div></div>
+                <span class="pct-label">${(r.pct*100).toFixed(0)}%</span>
+              </div>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+
+  const platsAll = [...new Set(RAW.map(d=>d.PLATAFORMA))].join(' · ');
+  document.getElementById('d-footer').textContent = `${RAW.length} registros · ${platsAll}`;
+}
+
+/* ─────────────────────────────────────────
+   MOBILE RENDER
+───────────────────────────────────────── */
+function renderMobile(data) {
+  const vc = document.getElementById('m-view-content');
+  if(!vc) return;
+  const col = COLORS[metric];
+  const ml = metric.charAt(0)+metric.slice(1).toLowerCase();
+
+  if(mView === 'dashboard') {
+    const kpi = getKpiData(data);
+    const diffClass = kpi.diff>=0?'up':'down';
+    const diffSign  = kpi.diff>=0?'▲':'▼';
+    vc.innerHTML = `
+      <div class="m-kpi-grid">
+        <div class="m-kpi">
+          <div class="m-kpi-label">Promedio</div>
+          <div class="m-kpi-value" style="color:${col.line}">${fmt(kpi.avgAll)}</div>
+          <div class="m-kpi-sub ${diffClass}">${diffSign} ${fmt(Math.abs(kpi.diff))}</div>
+        </div>
+        <div class="m-kpi">
+          <div class="m-kpi-label">Registros</div>
+          <div class="m-kpi-value">${data.length}</div>
+          <div class="m-kpi-sub neutral">${[...new Set(data.map(d=>d.OPERADOR))].length} ops</div>
+        </div>
+        <div class="m-kpi">
+          <div class="m-kpi-label">Máximo</div>
+          <div class="m-kpi-value">${fmt(kpi.maxVal)}</div>
+          <div class="m-kpi-sub neutral" style="font-size:10px;white-space:normal;line-height:1.3">${kpi.maxOp?kpi.maxOp.OPERADOR:'—'}</div>
+        </div>
+        <div class="m-kpi">
+          <div class="m-kpi-label">Mínimo</div>
+          <div class="m-kpi-value">${fmt(kpi.minVal)}</div>
+          <div class="m-kpi-sub neutral" style="font-size:10px;white-space:normal;line-height:1.3">${kpi.minOp?kpi.minOp.OPERADOR:'—'}</div>
+        </div>
+      </div>
+      <div class="m-card">
+        <div class="m-card-title">${ml} por mes</div>
+        <div style="position:relative;height:180px"><canvas id="m-chart1"></canvas></div>
+      </div>
+    `;
+    const meses = getMesesData(data);
+    const avgByMes = meses.map(m=>agg(data.filter(d=>d.MES===m).map(d=>+d[metric])));
+    if(mC1) mC1.destroy();
+    mC1 = new Chart(document.getElementById('m-chart1'),{
+      type:'line',
+      data:{ labels:meses.map(m=>m.slice(0,3)), datasets:[{ label:ml, data:avgByMes.map(v=>+v.toFixed(2)), borderColor:col.line, backgroundColor:col.fill, fill:true, tension:0.4, pointRadius:4, pointBackgroundColor:col.line, borderWidth:2 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{font:{size:10}},grid:{display:false}}, y:{ticks:{font:{size:9},callback:v=>metric==='AUDIOS'?v.toLocaleString('es-CO'):v+'%'},grid:{color:'rgba(128,128,128,0.07)'},beginAtZero:true} } }
+    });
+
+  } else if(mView === 'chart') {
+    vc.innerHTML = `
+      <div class="m-card" style="margin-bottom:10px">
+        <div class="m-card-title">${ml} por operador</div>
+        <div style="position:relative;height:220px"><canvas id="m-chart2"></canvas></div>
+      </div>
+    `;
+    const opList = [...new Set(data.map(d=>d.OPERADOR))].sort();
+    const avgByOp = opList.map(o=>agg(data.filter(d=>d.OPERADOR===o).map(d=>+d[metric])));
+    if(mC2) mC2.destroy();
+    mC2 = new Chart(document.getElementById('m-chart2'),{
+      type:'bar',
+      data:{ labels:opList.map(o=>o.split(' ')[0].slice(0,6)), datasets:[{ label:ml, data:avgByOp.map(v=>+v.toFixed(2)), backgroundColor:col.bar+'bb', borderColor:col.bar, borderWidth:1, borderRadius:3 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{font:{size:9},maxRotation:45,autoSkip:false},grid:{display:false}}, y:{ticks:{font:{size:9},callback:v=>metric==='AUDIOS'?v.toLocaleString('es-CO'):v+'%'},grid:{color:'rgba(128,128,128,0.07)'},beginAtZero:true} } }
+    });
+
+  } else if(mView === 'table') {
+    const rows = getTableRows(data);
+    vc.innerHTML = `
+      <div class="m-card">
+        <div class="m-card-title">${metric==='AUDIOS'?'Audios por operador':'Detalle '+ml}</div>
+        <div class="m-table-list">
+          ${rows.map((r,i)=>`
+            <div class="m-op-card">
+              <div class="m-op-header">
+                <span class="m-op-rank">#${i+1}</span>
+                <span class="m-op-name">${r.op}</span>
+                <span class="m-op-val" style="color:${col.line}">${fmt(r.val)}</span>
+              </div>
+              <div class="m-op-plat">${r.plts.join(' · ')}</div>
+              <div class="m-op-bar-wrap">
+                <div class="m-op-bar-bg"><div class="m-op-bar-fill" style="width:${(r.pct*100).toFixed(0)}%;background:${col.bar}"></div></div>
+                <span style="font-size:10px;color:var(--text3);font-weight:600">${(r.pct*100).toFixed(0)}%</span>
+              </div>
+              <div class="m-month-stack">
+                ${r.mssData.map(md=>`
+                  <div class="m-month-row">
+                    <span class="m-month-name">${md.mes.charAt(0)+md.mes.slice(1).toLowerCase()}</span>
+                    <div class="m-month-bar-wrap"><div class="m-month-bar-fill" style="width:${Math.min(md.val,100).toFixed(0)}%;background:${col.bar}"></div></div>
+                    <span class="m-month-pct" style="color:${col.line}">${fmt(md.val)}</span>
+                  </div>`).join('')}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+}
+
+window.addEventListener('resize', () => { if(RAW.length) render(); });
+</script>
+</body>
+</html>
